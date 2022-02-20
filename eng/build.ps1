@@ -723,7 +723,30 @@ try {
 
   if ($restore) {
     &(Ensure-DotNetSdk) tool restore
-    &(Ensure-DotNetSdk) workload install macos # TODO: Specify version
+
+    # TODO: Move this to Install-DotNetWorkload.ps1
+    # TODO: Implement the same thing in bash for build.sh
+    foreach ($workload in $GlobalJson.workloads.PSObject.Properties) {
+      $workloadName = $workload.Name
+      $shortWorkloadName = $workloadName.Substring($workloadName.LastIndexOf(".") + 1)
+
+      $rollbackJson = @{}
+      $rollbackJson[$workloadName] = $workload.Value.version
+
+      $rollbackFile = New-TemporaryFile
+      $rollbackJson | ConvertTo-Json | Set-Content -Path $rollbackFile
+
+      $sourcesArgs = @()
+      foreach ($source in $workload.Value.sources) {
+        $sourcesArgs += "--source"
+        $sourcesArgs += $source
+      }
+
+      # TODO: This requires elevated access, at least on Mac.
+      &(Ensure-DotNetSdk) workload install $shortWorkloadName --from-rollback-file $rollbackFile $sourcesArgs
+
+      Remove-Item $rollbackFile
+    }
   }
 
   try
